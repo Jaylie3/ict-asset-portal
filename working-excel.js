@@ -2,8 +2,8 @@
 const msalConfig = {
     auth: {
         clientId: CONFIG.CLIENT_ID,
-        authority: 'https://login.microsoftonline.com/consumers',
-        redirectUri: 'https://login.microsoftonline.com/common/oauth2/nativeclient'
+        authority: 'https://login.microsoftonline.com/common',
+        redirectUri: window.location.origin
     }
 };
 
