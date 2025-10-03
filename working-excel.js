@@ -3,7 +3,7 @@ const msalConfig = {
     auth: {
         clientId: CONFIG.CLIENT_ID,
         authority: 'https://login.microsoftonline.com/consumers',
-        redirectUri: 'https://login.microsoftonline.com/common/oauth2/nativeclient'
+        redirectUri: window.location.origin || 'https://jaylie3.github.io'
     }
 };
 
