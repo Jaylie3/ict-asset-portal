@@ -175,18 +175,21 @@ async function saveToExcel(data) {
         data.contact,
         data.school,
         data.purpose,
+        data.serialNumber || '',
         data.brand,
         data.fault,
         data.items || '',
         data.password || '',
-        data.notes || ''
+        data.notes || '',
+        data.sender,
+        data.receiver
     ];
     
     // Add headers if this is the first row
     if (nextRow === 2) {
-        const headers = ['Timestamp', 'Date', 'Initials', 'Surname', 'Contact', 'School', 'Purpose', 'Brand & Model', 'Fault Description', 'Items Included', 'Password', 'Notes'];
+        const headers = ['Timestamp', 'Date', 'Initials', 'Surname', 'Contact', 'School', 'Purpose', 'Serial Number', 'Brand & Model', 'Fault Description', 'Items Included', 'Password', 'Notes', 'Sender', 'Receiver'];
         
-        await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${WORKBOOK_ID}/workbook/worksheets/Sheet1/range(address='A1:L1')`, {
+        await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${WORKBOOK_ID}/workbook/worksheets/Sheet1/range(address='A1:O1')`, {
             method: 'PATCH',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -197,7 +200,7 @@ async function saveToExcel(data) {
     }
     
     // Add the data row
-    const response = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${WORKBOOK_ID}/workbook/worksheets/Sheet1/range(address='A${nextRow}:L${nextRow}')`, {
+    const response = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${WORKBOOK_ID}/workbook/worksheets/Sheet1/range(address='A${nextRow}:O${nextRow}')`, {
         method: 'PATCH',
         headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -266,9 +269,12 @@ function displayAssets(assets) {
             <td>${asset.contact}</td>
             <td>${asset.school}</td>
             <td>${asset.purpose}</td>
+            <td>${asset['serialnumber'] || asset.serialNumber || ''}</td>
             <td>${asset['brand&model'] || asset.brand}</td>
             <td>${asset['faultdescription'] || asset.fault}</td>
             <td>${asset['itemsincluded'] || asset.items || 'None'}</td>
+            <td>${asset.sender || ''}</td>
+            <td>${asset.receiver || ''}</td>
             <td><span class="status">In Progress</span></td>
         `;
         
@@ -285,9 +291,12 @@ function displaySampleData() {
             contact: '123-456-7890',
             school: 'Central High School',
             purpose: 'Repair',
+            serialNumber: 'DL123456789',
             brand: 'Dell Latitude 5520',
             fault: 'Screen flickering issue',
-            items: 'Laptop Bag, Charger'
+            items: 'Laptop Bag, Charger',
+            sender: 'Tech Support',
+            receiver: 'J. Smith'
         }
     ];
     
@@ -311,13 +320,13 @@ function filterTable() {
 }
 
 function validateForm() {
-    const required = ['date', 'initials', 'surname', 'contact', 'school', 'brand', 'fault'];
+    const required = ['date', 'initials', 'surname', 'contact', 'school', 'serialNumber', 'brand', 'fault', 'sender', 'receiver'];
     const purpose = document.querySelector('input[name="purpose"]:checked');
     
     for (let field of required) {
         const element = document.getElementById(field);
         if (!element.value.trim()) {
-            showMessage(`Please fill in ${field}`, 'error');
+            showMessage(`Please fill in ${field.replace(/([A-Z])/g, ' $1').toLowerCase()}`, 'error');
             element.focus();
             return false;
         }
