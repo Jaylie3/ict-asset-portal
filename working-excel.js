@@ -3,9 +3,22 @@ const msalConfig = {
     auth: {
         clientId: CONFIG.CLIENT_ID,
         authority: 'https://login.microsoftonline.com/common',
-        redirectUri: window.location.origin
+        redirectUri: getRedirectUri()
     }
 };
+
+// Function to determine correct redirect URI based on environment
+function getRedirectUri() {
+    const origin = window.location.origin;
+    
+    // For local development, ensure we use the standard localhost URI that should be registered in Azure AD
+    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        return 'http://localhost:8888';
+    }
+    
+    // For Netlify deployments and production, use the current origin
+    return origin;
+}
 
 const WORKBOOK_ID = CONFIG.WORKBOOK_ID;
 const msalInstance = new msal.PublicClientApplication(msalConfig);
@@ -24,10 +37,36 @@ const signInBtn = document.getElementById('signInBtn');
 const userInfo = document.getElementById('userInfo');
 
 // Initialize
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     document.getElementById('date').valueAsDate = new Date();
     
-    account = msalInstance.getActiveAccount();
+    // Debug: Log the current configuration
+    console.log('MSAL Configuration:', {
+        clientId: msalConfig.auth.clientId,
+        redirectUri: msalConfig.auth.redirectUri,
+        authority: msalConfig.auth.authority,
+        currentOrigin: window.location.origin
+    });
+    
+    // Initialize MSAL and handle any redirect response
+    await msalInstance.initialize();
+    
+    // Handle redirect response (for when user returns from Microsoft login)
+    try {
+        const response = await msalInstance.handleRedirectPromise();
+        if (response) {
+            account = response.account;
+            console.log('Authentication successful via redirect:', response.account.username);
+        } else {
+            account = msalInstance.getActiveAccount();
+            if (account) {
+                console.log('Found cached account:', account.username);
+            }
+        }
+    } catch (error) {
+        console.error('Error handling redirect response:', error);
+    }
+    
     updateUI();
     
     showFormBtn.addEventListener('click', showForm);
@@ -43,7 +82,8 @@ document.addEventListener('DOMContentLoaded', function() {
 async function signIn() {
     try {
         const response = await msalInstance.loginPopup({
-            scopes: ['https://graph.microsoft.com/Files.ReadWrite.All']
+            scopes: ['https://graph.microsoft.com/Files.ReadWrite.All'],
+            prompt: 'select_account'  // Force account selection to avoid cached issues
         });
         account = response.account;
         updateUI();
@@ -51,7 +91,20 @@ async function signIn() {
         loadAssets();
     } catch (error) {
         console.error('Sign-in failed:', error);
-        showMessage('Sign-in failed. Please try again.', 'error');
+        
+        // Provide more specific error messages
+        let errorMessage = 'Sign-in failed. ';
+        if (error.errorCode === 'user_cancelled') {
+            errorMessage += 'Sign-in was cancelled.';
+        } else if (error.errorCode === 'consent_required') {
+            errorMessage += 'Admin consent required for this application.';
+        } else if (error.errorCode === 'invalid_request') {
+            errorMessage += 'Invalid configuration. Please check the app registration.';
+        } else {
+            errorMessage += `Error: ${error.errorMessage || error.message}`;
+        }
+        
+        showMessage(errorMessage, 'error');
     }
 }
 
@@ -90,10 +143,17 @@ async function getAccessToken() {
         });
         return response.accessToken;
     } catch (error) {
-        const response = await msalInstance.acquireTokenPopup({
-            scopes: ['https://graph.microsoft.com/Files.ReadWrite.All']
-        });
-        return response.accessToken;
+        console.log('Silent token acquisition failed, trying popup:', error);
+        try {
+            const response = await msalInstance.acquireTokenPopup({
+                scopes: ['https://graph.microsoft.com/Files.ReadWrite.All'],
+                account: account
+            });
+            return response.accessToken;
+        } catch (popupError) {
+            console.error('Token acquisition failed:', popupError);
+            throw new Error('Failed to acquire access token. Please sign in again.');
+        }
     }
 }
 
